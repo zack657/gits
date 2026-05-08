@@ -1,7 +1,7 @@
 import Foundation
 
 struct ResolutionResult: Codable, Equatable, Sendable {
-    enum Source: String, Codable, CaseIterable, Sendable {
+    enum Reason: String, Codable, CaseIterable, Sendable {
         case repositoryBinding
         case workspaceRule
         case globalDefault
@@ -9,25 +9,16 @@ struct ResolutionResult: Codable, Equatable, Sendable {
     }
 
     var repositoryPath: String
-    var resolvedAccountID: UUID?
-    var matchedRuleID: UUID?
-    var matchedBindingID: UUID?
-    var source: Source
-    var diagnostics: [String]
+    var accountID: UUID?
+    var reason: Reason
 
     init(
         repositoryPath: String,
-        resolvedAccountID: UUID? = nil,
-        matchedRuleID: UUID? = nil,
-        matchedBindingID: UUID? = nil,
-        source: Source,
-        diagnostics: [String] = []
+        accountID: UUID? = nil,
+        reason: Reason
     ) {
         self.repositoryPath = repositoryPath
-        self.resolvedAccountID = resolvedAccountID
-        self.matchedRuleID = matchedRuleID
-        self.matchedBindingID = matchedBindingID
-        self.source = source
-        self.diagnostics = diagnostics
+        self.accountID = accountID
+        self.reason = reason
     }
 }
