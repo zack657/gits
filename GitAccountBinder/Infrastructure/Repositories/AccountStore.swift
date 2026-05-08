@@ -22,44 +22,68 @@ struct AccountStore {
                 )
             }
 
-            try db.execute(
-                sql: """
-                INSERT INTO accounts (
-                    id,
-                    display_name,
-                    git_user_name,
-                    git_user_email,
-                    platform_type,
-                    ssh_key_id,
-                    signing_key,
-                    is_global_default,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    display_name = excluded.display_name,
-                    git_user_name = excluded.git_user_name,
-                    git_user_email = excluded.git_user_email,
-                    platform_type = excluded.platform_type,
-                    ssh_key_id = excluded.ssh_key_id,
-                    signing_key = excluded.signing_key,
-                    is_global_default = excluded.is_global_default,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at
-                """,
-                arguments: [
-                    account.id.uuidString,
-                    account.displayName,
-                    account.gitUserName,
-                    account.gitUserEmail,
-                    account.platformType.rawValue,
-                    account.sshKeyID?.uuidString,
-                    account.signingKey,
-                    account.isGlobalDefault,
-                    account.createdAt,
-                    account.updatedAt
-                ]
+            let existingID = try String.fetchOne(
+                db,
+                sql: "SELECT id FROM accounts WHERE id = ?",
+                arguments: [account.id.uuidString]
             )
+
+            if let existingID {
+                try db.execute(
+                    sql: """
+                    UPDATE accounts
+                    SET display_name = ?,
+                        git_user_name = ?,
+                        git_user_email = ?,
+                        platform_type = ?,
+                        ssh_key_id = ?,
+                        signing_key = ?,
+                        is_global_default = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        account.displayName,
+                        account.gitUserName,
+                        account.gitUserEmail,
+                        account.platformType.rawValue,
+                        account.sshKeyID?.uuidString,
+                        account.signingKey,
+                        account.isGlobalDefault,
+                        account.updatedAt,
+                        existingID
+                    ]
+                )
+            } else {
+                try db.execute(
+                    sql: """
+                    INSERT INTO accounts (
+                        id,
+                        display_name,
+                        git_user_name,
+                        git_user_email,
+                        platform_type,
+                        ssh_key_id,
+                        signing_key,
+                        is_global_default,
+                        created_at,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        account.id.uuidString,
+                        account.displayName,
+                        account.gitUserName,
+                        account.gitUserEmail,
+                        account.platformType.rawValue,
+                        account.sshKeyID?.uuidString,
+                        account.signingKey,
+                        account.isGlobalDefault,
+                        account.createdAt,
+                        account.updatedAt
+                    ]
+                )
+            }
         }
     }
 

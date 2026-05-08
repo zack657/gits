@@ -10,38 +10,72 @@ struct RepositoryBindingStore {
 
     func save(_ binding: RepositoryBinding) throws {
         try databaseWriter.write { db in
-            try db.execute(
+            let existingID = try String.fetchOne(
+                db,
                 sql: """
-                INSERT INTO repository_bindings (
-                    id,
-                    repository_path,
-                    account_id,
-                    remote_url,
-                    branch_pattern,
-                    priority,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    repository_path = excluded.repository_path,
-                    account_id = excluded.account_id,
-                    remote_url = excluded.remote_url,
-                    branch_pattern = excluded.branch_pattern,
-                    priority = excluded.priority,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at
+                SELECT id
+                FROM repository_bindings
+                WHERE id = ? OR repository_path = ?
+                ORDER BY CASE WHEN repository_path = ? THEN 0 ELSE 1 END
+                LIMIT 1
                 """,
                 arguments: [
                     binding.id.uuidString,
                     binding.repositoryPath,
-                    binding.accountID.uuidString,
-                    binding.remoteURL,
-                    binding.branchPattern,
-                    binding.priority,
-                    binding.createdAt,
-                    binding.updatedAt
+                    binding.repositoryPath
                 ]
             )
+
+            if let existingID {
+                try db.execute(
+                    sql: """
+                    UPDATE repository_bindings
+                    SET id = ?,
+                        repository_path = ?,
+                        account_id = ?,
+                        remote_url = ?,
+                        branch_pattern = ?,
+                        priority = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        binding.id.uuidString,
+                        binding.repositoryPath,
+                        binding.accountID.uuidString,
+                        binding.remoteURL,
+                        binding.branchPattern,
+                        binding.priority,
+                        binding.updatedAt,
+                        existingID
+                    ]
+                )
+            } else {
+                try db.execute(
+                    sql: """
+                    INSERT INTO repository_bindings (
+                        id,
+                        repository_path,
+                        account_id,
+                        remote_url,
+                        branch_pattern,
+                        priority,
+                        created_at,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        binding.id.uuidString,
+                        binding.repositoryPath,
+                        binding.accountID.uuidString,
+                        binding.remoteURL,
+                        binding.branchPattern,
+                        binding.priority,
+                        binding.createdAt,
+                        binding.updatedAt
+                    ]
+                )
+            }
         }
     }
 

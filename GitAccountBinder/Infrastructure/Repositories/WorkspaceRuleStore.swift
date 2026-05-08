@@ -21,35 +21,68 @@ struct WorkspaceRuleStore {
         }
 
         try databaseWriter.write { db in
-            try db.execute(
+            let existingID = try String.fetchOne(
+                db,
                 sql: """
-                INSERT INTO workspace_rules (
-                    id,
-                    workspace_root_path,
-                    default_account_id,
-                    include_patterns,
-                    exclude_patterns,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    workspace_root_path = excluded.workspace_root_path,
-                    default_account_id = excluded.default_account_id,
-                    include_patterns = excluded.include_patterns,
-                    exclude_patterns = excluded.exclude_patterns,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at
+                SELECT id
+                FROM workspace_rules
+                WHERE id = ? OR workspace_root_path = ?
+                ORDER BY CASE WHEN workspace_root_path = ? THEN 0 ELSE 1 END
+                LIMIT 1
                 """,
                 arguments: [
                     rule.id.uuidString,
                     rule.workspaceRootPath,
-                    rule.defaultAccountID?.uuidString,
-                    includePatterns,
-                    excludePatterns,
-                    rule.createdAt,
-                    rule.updatedAt
+                    rule.workspaceRootPath
                 ]
             )
+
+            if let existingID {
+                try db.execute(
+                    sql: """
+                    UPDATE workspace_rules
+                    SET id = ?,
+                        workspace_root_path = ?,
+                        default_account_id = ?,
+                        include_patterns = ?,
+                        exclude_patterns = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        rule.id.uuidString,
+                        rule.workspaceRootPath,
+                        rule.defaultAccountID?.uuidString,
+                        includePatterns,
+                        excludePatterns,
+                        rule.updatedAt,
+                        existingID
+                    ]
+                )
+            } else {
+                try db.execute(
+                    sql: """
+                    INSERT INTO workspace_rules (
+                        id,
+                        workspace_root_path,
+                        default_account_id,
+                        include_patterns,
+                        exclude_patterns,
+                        created_at,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        rule.id.uuidString,
+                        rule.workspaceRootPath,
+                        rule.defaultAccountID?.uuidString,
+                        includePatterns,
+                        excludePatterns,
+                        rule.createdAt,
+                        rule.updatedAt
+                    ]
+                )
+            }
         }
     }
 
