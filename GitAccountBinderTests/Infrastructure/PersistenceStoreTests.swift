@@ -115,6 +115,139 @@ struct PersistenceStoreTests {
     }
 
     @Test
+    func repositoryBindingSaveThrowsOnConflictingIdentifierAndRepositoryPathMatches() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = RepositoryBindingStore(databaseWriter: databaseManager.writer)
+        let createdAt = Date(timeIntervalSince1970: 3_000)
+        let updatedAt = Date(timeIntervalSince1970: 4_000)
+        let firstAccount = makeAccount(
+            id: UUID(),
+            name: "冲突绑定账号A",
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let secondAccount = makeAccount(
+            id: UUID(),
+            name: "冲突绑定账号B",
+            createdAt: updatedAt,
+            updatedAt: updatedAt
+        )
+        let idMatched = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/repo-conflict-id",
+            accountID: firstAccount.id,
+            remoteURL: "git@github.com:conflict/id.git",
+            branchPattern: "main",
+            priority: 1,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let logicalKeyMatched = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/repo-conflict-path",
+            accountID: secondAccount.id,
+            remoteURL: "git@github.com:conflict/path.git",
+            branchPattern: "release/*",
+            priority: 2,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let conflictingSave = RepositoryBinding(
+            id: idMatched.id,
+            repositoryPath: logicalKeyMatched.repositoryPath,
+            accountID: secondAccount.id,
+            remoteURL: "git@github.com:conflict/new.git",
+            branchPattern: "hotfix/*",
+            priority: 9,
+            createdAt: updatedAt,
+            updatedAt: updatedAt
+        )
+
+        try accountStore.save(firstAccount)
+        try accountStore.save(secondAccount)
+        try store.save(idMatched)
+        try store.save(logicalKeyMatched)
+
+        do {
+            try store.save(conflictingSave)
+            Issue.record("Expected conflicting repository binding save to throw")
+        } catch {}
+
+        let bindings = try store.fetchAll()
+        #expect(bindings.count == 2)
+        #expect(bindings.first(where: { $0.id == idMatched.id })?.repositoryPath == idMatched.repositoryPath)
+        #expect(bindings.first(where: { $0.id == logicalKeyMatched.id })?.repositoryPath == logicalKeyMatched.repositoryPath)
+        #expect(bindings.first(where: { $0.id == idMatched.id })?.accountID == idMatched.accountID)
+        #expect(bindings.first(where: { $0.id == logicalKeyMatched.id })?.accountID == logicalKeyMatched.accountID)
+    }
+
+    @Test
+    func workspaceRuleSaveThrowsOnConflictingIdentifierAndWorkspaceRootMatches() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = WorkspaceRuleStore(databaseWriter: databaseManager.writer)
+        let createdAt = Date(timeIntervalSince1970: 21_000)
+        let updatedAt = Date(timeIntervalSince1970: 22_000)
+        let firstAccount = makeAccount(
+            id: UUID(),
+            name: "冲突规则账号A",
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let secondAccount = makeAccount(
+            id: UUID(),
+            name: "冲突规则账号B",
+            createdAt: updatedAt,
+            updatedAt: updatedAt
+        )
+        let idMatched = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/workspace-conflict-id",
+            defaultAccountID: firstAccount.id,
+            includePatterns: ["client/*"],
+            excludePatterns: [".build"],
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let logicalKeyMatched = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/workspace-conflict-root",
+            defaultAccountID: secondAccount.id,
+            includePatterns: ["apps/*"],
+            excludePatterns: ["DerivedData"],
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        let conflictingSave = WorkspaceRule(
+            id: idMatched.id,
+            workspaceRootPath: logicalKeyMatched.workspaceRootPath,
+            defaultAccountID: secondAccount.id,
+            includePatterns: ["tools/*"],
+            excludePatterns: ["tmp/cache"],
+            createdAt: updatedAt,
+            updatedAt: updatedAt
+        )
+
+        try accountStore.save(firstAccount)
+        try accountStore.save(secondAccount)
+        try store.save(idMatched)
+        try store.save(logicalKeyMatched)
+
+        do {
+            try store.save(conflictingSave)
+            Issue.record("Expected conflicting workspace rule save to throw")
+        } catch {}
+
+        let rules = try store.fetchAll()
+        #expect(rules.count == 2)
+        #expect(rules.first(where: { $0.id == idMatched.id })?.workspaceRootPath == idMatched.workspaceRootPath)
+        #expect(rules.first(where: { $0.id == logicalKeyMatched.id })?.workspaceRootPath == logicalKeyMatched.workspaceRootPath)
+        #expect(rules.first(where: { $0.id == idMatched.id })?.defaultAccountID == idMatched.defaultAccountID)
+        #expect(rules.first(where: { $0.id == logicalKeyMatched.id })?.defaultAccountID == logicalKeyMatched.defaultAccountID)
+    }
+
+    @Test
     func deletingAccountCascadeDeletesRelatedRepositoryBindings() throws {
         let databaseManager = try DatabaseManager.inMemory()
         let accountStore = AccountStore(databaseWriter: databaseManager.writer)

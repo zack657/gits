@@ -21,21 +21,24 @@ struct WorkspaceRuleStore {
         }
 
         try databaseWriter.write { db in
-            let existingID = try String.fetchOne(
+            let existingIDMatch = try String.fetchOne(
                 db,
-                sql: """
-                SELECT id
-                FROM workspace_rules
-                WHERE id = ? OR workspace_root_path = ?
-                ORDER BY CASE WHEN workspace_root_path = ? THEN 0 ELSE 1 END
-                LIMIT 1
-                """,
-                arguments: [
-                    rule.id.uuidString,
-                    rule.workspaceRootPath,
-                    rule.workspaceRootPath
-                ]
+                sql: "SELECT id FROM workspace_rules WHERE id = ?",
+                arguments: [rule.id.uuidString]
             )
+            let existingWorkspaceRootPathMatch = try String.fetchOne(
+                db,
+                sql: "SELECT id FROM workspace_rules WHERE workspace_root_path = ?",
+                arguments: [rule.workspaceRootPath]
+            )
+
+            if let existingIDMatch, let existingWorkspaceRootPathMatch, existingIDMatch != existingWorkspaceRootPathMatch {
+                throw DatabaseError(
+                    message: "Ambiguous workspace rule save conflict for id \(rule.id.uuidString) and workspace root path \(rule.workspaceRootPath)"
+                )
+            }
+
+            let existingID = existingIDMatch ?? existingWorkspaceRootPathMatch
 
             if let existingID {
                 try db.execute(

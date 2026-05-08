@@ -10,21 +10,24 @@ struct RepositoryBindingStore {
 
     func save(_ binding: RepositoryBinding) throws {
         try databaseWriter.write { db in
-            let existingID = try String.fetchOne(
+            let existingIDMatch = try String.fetchOne(
                 db,
-                sql: """
-                SELECT id
-                FROM repository_bindings
-                WHERE id = ? OR repository_path = ?
-                ORDER BY CASE WHEN repository_path = ? THEN 0 ELSE 1 END
-                LIMIT 1
-                """,
-                arguments: [
-                    binding.id.uuidString,
-                    binding.repositoryPath,
-                    binding.repositoryPath
-                ]
+                sql: "SELECT id FROM repository_bindings WHERE id = ?",
+                arguments: [binding.id.uuidString]
             )
+            let existingRepositoryPathMatch = try String.fetchOne(
+                db,
+                sql: "SELECT id FROM repository_bindings WHERE repository_path = ?",
+                arguments: [binding.repositoryPath]
+            )
+
+            if let existingIDMatch, let existingRepositoryPathMatch, existingIDMatch != existingRepositoryPathMatch {
+                throw DatabaseError(
+                    message: "Ambiguous repository binding save conflict for id \(binding.id.uuidString) and repository path \(binding.repositoryPath)"
+                )
+            }
+
+            let existingID = existingIDMatch ?? existingRepositoryPathMatch
 
             if let existingID {
                 try db.execute(
