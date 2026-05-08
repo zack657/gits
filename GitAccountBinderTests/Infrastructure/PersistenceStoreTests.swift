@@ -61,6 +61,45 @@ struct PersistenceStoreTests {
     }
 
     @Test
+    func repositoryBindingSaveNormalizesPathCasingAndTrailingSlash() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = RepositoryBindingStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "路径规范账号",
+            createdAt: Date(timeIntervalSince1970: 2_500),
+            updatedAt: Date(timeIntervalSince1970: 2_500)
+        )
+        let original = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/Repo-Normalized/",
+            accountID: account.id,
+            remoteURL: "git@github.com:normalized/repo.git",
+            branchPattern: "main",
+            priority: 1
+        )
+        let replacement = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/repo-normalized",
+            accountID: account.id,
+            remoteURL: "git@github.com:normalized/repo-v2.git",
+            branchPattern: "release/*",
+            priority: 2
+        )
+
+        try accountStore.save(account)
+        try store.save(original)
+        try store.save(replacement)
+        let bindings = try store.fetchAll()
+
+        #expect(bindings.count == 1)
+        #expect(bindings[0].id == original.id)
+        #expect(bindings[0].repositoryPath == "/tmp/repo-normalized")
+        #expect(bindings[0].remoteURL == replacement.remoteURL)
+    }
+
+    @Test
     func workspaceRuleSaveReusesLogicalWorkspaceRootPath() throws {
         let databaseManager = try DatabaseManager.inMemory()
         let accountStore = AccountStore(databaseWriter: databaseManager.writer)
@@ -112,6 +151,44 @@ struct PersistenceStoreTests {
         #expect(rules[0].excludePatterns == replacement.excludePatterns)
         #expect(rules[0].createdAt == originalCreatedAt)
         #expect(rules[0].updatedAt == updatedAt)
+    }
+
+    @Test
+    func workspaceRuleSaveNormalizesPathCasingAndTrailingSlash() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = WorkspaceRuleStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "目录规范账号",
+            createdAt: Date(timeIntervalSince1970: 25_000),
+            updatedAt: Date(timeIntervalSince1970: 25_000)
+        )
+        let original = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/Workspace-Normalized/",
+            defaultAccountID: account.id,
+            includePatterns: ["apps/*"],
+            excludePatterns: [".build"]
+        )
+        let replacement = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/workspace-normalized",
+            defaultAccountID: account.id,
+            includePatterns: ["tools/*"],
+            excludePatterns: ["DerivedData"]
+        )
+
+        try accountStore.save(account)
+        try store.save(original)
+        try store.save(replacement)
+        let rules = try store.fetchAll()
+
+        #expect(rules.count == 1)
+        #expect(rules[0].id == original.id)
+        #expect(rules[0].workspaceRootPath == "/tmp/workspace-normalized")
+        #expect(rules[0].includePatterns == replacement.includePatterns)
+        #expect(rules[0].excludePatterns == replacement.excludePatterns)
     }
 
     @Test
@@ -172,7 +249,9 @@ struct PersistenceStoreTests {
         do {
             try store.save(conflictingSave)
             Issue.record("Expected conflicting repository binding save to throw")
-        } catch {}
+        } catch {
+            #expect(String(describing: error).contains("Ambiguous repository binding save conflict"))
+        }
 
         let bindings = try store.fetchAll()
         #expect(bindings.count == 2)
@@ -237,7 +316,9 @@ struct PersistenceStoreTests {
         do {
             try store.save(conflictingSave)
             Issue.record("Expected conflicting workspace rule save to throw")
-        } catch {}
+        } catch {
+            #expect(String(describing: error).contains("Ambiguous workspace rule save conflict"))
+        }
 
         let rules = try store.fetchAll()
         #expect(rules.count == 2)

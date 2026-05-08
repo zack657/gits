@@ -9,6 +9,9 @@ struct RepositoryBindingStore {
     }
 
     func save(_ binding: RepositoryBinding) throws {
+        let normalizedRepositoryPath = Self.normalizedPath(binding.repositoryPath)
+        let repositoryPathKey = Self.pathLookupKey(normalizedRepositoryPath)
+
         try databaseWriter.write { db in
             let existingIDMatch = try String.fetchOne(
                 db,
@@ -17,13 +20,13 @@ struct RepositoryBindingStore {
             )
             let existingRepositoryPathMatch = try String.fetchOne(
                 db,
-                sql: "SELECT id FROM repository_bindings WHERE repository_path = ?",
-                arguments: [binding.repositoryPath]
+                sql: "SELECT id FROM repository_bindings WHERE lower(repository_path) = ?",
+                arguments: [repositoryPathKey]
             )
 
             if let existingIDMatch, let existingRepositoryPathMatch, existingIDMatch != existingRepositoryPathMatch {
                 throw DatabaseError(
-                    message: "Ambiguous repository binding save conflict for id \(binding.id.uuidString) and repository path \(binding.repositoryPath)"
+                    message: "Ambiguous repository binding save conflict for id \(binding.id.uuidString) and repository path \(normalizedRepositoryPath)"
                 )
             }
 
@@ -42,7 +45,7 @@ struct RepositoryBindingStore {
                     WHERE id = ?
                     """,
                     arguments: [
-                        binding.repositoryPath,
+                        normalizedRepositoryPath,
                         binding.accountID.uuidString,
                         binding.remoteURL,
                         binding.branchPattern,
@@ -67,7 +70,7 @@ struct RepositoryBindingStore {
                     """,
                     arguments: [
                         binding.id.uuidString,
-                        binding.repositoryPath,
+                        normalizedRepositoryPath,
                         binding.accountID.uuidString,
                         binding.remoteURL,
                         binding.branchPattern,
@@ -101,6 +104,23 @@ struct RepositoryBindingStore {
 
             return try rows.map(Self.makeBinding)
         }
+    }
+
+    private static func normalizedPath(_ path: String) -> String {
+        var normalized = URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
+
+        if normalized.count > 1 {
+            normalized = normalized.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        }
+
+        return normalized
+    }
+
+    private static func pathLookupKey(_ path: String) -> String {
+        normalizedPath(path).lowercased()
     }
 
     private static func makeBinding(from row: Row) throws -> RepositoryBinding {

@@ -11,6 +11,8 @@ struct WorkspaceRuleStore {
     }
 
     func save(_ rule: WorkspaceRule) throws {
+        let normalizedWorkspaceRootPath = Self.normalizedPath(rule.workspaceRootPath)
+        let workspaceRootPathKey = Self.pathLookupKey(normalizedWorkspaceRootPath)
         let includePatternsData = try encoder.encode(rule.includePatterns)
         let excludePatternsData = try encoder.encode(rule.excludePatterns)
         guard
@@ -28,13 +30,13 @@ struct WorkspaceRuleStore {
             )
             let existingWorkspaceRootPathMatch = try String.fetchOne(
                 db,
-                sql: "SELECT id FROM workspace_rules WHERE workspace_root_path = ?",
-                arguments: [rule.workspaceRootPath]
+                sql: "SELECT id FROM workspace_rules WHERE lower(workspace_root_path) = ?",
+                arguments: [workspaceRootPathKey]
             )
 
             if let existingIDMatch, let existingWorkspaceRootPathMatch, existingIDMatch != existingWorkspaceRootPathMatch {
                 throw DatabaseError(
-                    message: "Ambiguous workspace rule save conflict for id \(rule.id.uuidString) and workspace root path \(rule.workspaceRootPath)"
+                    message: "Ambiguous workspace rule save conflict for id \(rule.id.uuidString) and workspace root path \(normalizedWorkspaceRootPath)"
                 )
             }
 
@@ -52,7 +54,7 @@ struct WorkspaceRuleStore {
                     WHERE id = ?
                     """,
                     arguments: [
-                        rule.workspaceRootPath,
+                        normalizedWorkspaceRootPath,
                         rule.defaultAccountID?.uuidString,
                         includePatterns,
                         excludePatterns,
@@ -75,7 +77,7 @@ struct WorkspaceRuleStore {
                     """,
                     arguments: [
                         rule.id.uuidString,
-                        rule.workspaceRootPath,
+                        normalizedWorkspaceRootPath,
                         rule.defaultAccountID?.uuidString,
                         includePatterns,
                         excludePatterns,
@@ -109,6 +111,23 @@ struct WorkspaceRuleStore {
                 try Self.makeRule(decoder: decoder, from: row)
             }
         }
+    }
+
+    private static func normalizedPath(_ path: String) -> String {
+        var normalized = URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
+
+        if normalized.count > 1 {
+            normalized = normalized.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        }
+
+        return normalized
+    }
+
+    private static func pathLookupKey(_ path: String) -> String {
+        normalizedPath(path).lowercased()
     }
 
     private static func makeRule(decoder: JSONDecoder, from row: Row) throws -> WorkspaceRule {
