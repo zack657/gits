@@ -11,8 +11,8 @@ struct WorkspaceRuleStore {
     }
 
     func save(_ rule: WorkspaceRule) throws {
-        let normalizedWorkspaceRootPath = Self.normalizedPath(rule.workspaceRootPath)
-        let workspaceRootPathKey = Self.pathLookupKey(normalizedWorkspaceRootPath)
+        let normalizedWorkspaceRootPath = PersistencePathNormalizer.normalizedStoredPath(rule.workspaceRootPath)
+        let workspaceRootPathKey = PersistencePathNormalizer.logicalLookupKey(for: normalizedWorkspaceRootPath)
         let includePatternsData = try encoder.encode(rule.includePatterns)
         let excludePatternsData = try encoder.encode(rule.excludePatterns)
         guard
@@ -28,11 +28,17 @@ struct WorkspaceRuleStore {
                 sql: "SELECT id FROM workspace_rules WHERE id = ?",
                 arguments: [rule.id.uuidString]
             )
-            let existingWorkspaceRootPathMatch = try String.fetchOne(
+            let existingWorkspaceRootPathMatch = try Row.fetchAll(
                 db,
-                sql: "SELECT id FROM workspace_rules WHERE lower(workspace_root_path) = ?",
-                arguments: [workspaceRootPathKey]
+                sql: "SELECT id, workspace_root_path FROM workspace_rules"
             )
+            .first { row in
+                let existingPath: String = row["workspace_root_path"]
+                return PersistencePathNormalizer.logicalLookupKey(for: existingPath) == workspaceRootPathKey
+            }
+            .flatMap { row -> String? in
+                row["id"]
+            }
 
             if let existingIDMatch, let existingWorkspaceRootPathMatch, existingIDMatch != existingWorkspaceRootPathMatch {
                 throw DatabaseError(
@@ -111,23 +117,6 @@ struct WorkspaceRuleStore {
                 try Self.makeRule(decoder: decoder, from: row)
             }
         }
-    }
-
-    private static func normalizedPath(_ path: String) -> String {
-        var normalized = URL(fileURLWithPath: path)
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-            .path
-
-        if normalized.count > 1 {
-            normalized = normalized.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
-        }
-
-        return normalized
-    }
-
-    private static func pathLookupKey(_ path: String) -> String {
-        normalizedPath(path).lowercased()
     }
 
     private static func makeRule(decoder: JSONDecoder, from row: Row) throws -> WorkspaceRule {

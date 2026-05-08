@@ -100,6 +100,44 @@ struct PersistenceStoreTests {
     }
 
     @Test
+    func repositoryBindingSaveMatchesUnicodeCaseVariants() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = RepositoryBindingStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "Unicode路径账号",
+            createdAt: Date(timeIntervalSince1970: 2_700),
+            updatedAt: Date(timeIntervalSince1970: 2_700)
+        )
+        let original = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/ÄRepo",
+            accountID: account.id,
+            remoteURL: "git@github.com:unicode/repo.git",
+            branchPattern: "main",
+            priority: 1
+        )
+        let replacement = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/ärepo/",
+            accountID: account.id,
+            remoteURL: "git@github.com:unicode/repo-v2.git",
+            branchPattern: "release/*",
+            priority: 2
+        )
+
+        try accountStore.save(account)
+        try store.save(original)
+        try store.save(replacement)
+        let bindings = try store.fetchAll()
+
+        #expect(bindings.count == 1)
+        #expect(bindings[0].id == original.id)
+        #expect(bindings[0].remoteURL == replacement.remoteURL)
+    }
+
+    @Test
     func workspaceRuleSaveReusesLogicalWorkspaceRootPath() throws {
         let databaseManager = try DatabaseManager.inMemory()
         let accountStore = AccountStore(databaseWriter: databaseManager.writer)
@@ -187,6 +225,43 @@ struct PersistenceStoreTests {
         #expect(rules.count == 1)
         #expect(rules[0].id == original.id)
         #expect(rules[0].workspaceRootPath == "/tmp/workspace-normalized")
+        #expect(rules[0].includePatterns == replacement.includePatterns)
+        #expect(rules[0].excludePatterns == replacement.excludePatterns)
+    }
+
+    @Test
+    func workspaceRuleSaveMatchesUnicodeCaseVariants() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = WorkspaceRuleStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "Unicode目录账号",
+            createdAt: Date(timeIntervalSince1970: 26_000),
+            updatedAt: Date(timeIntervalSince1970: 26_000)
+        )
+        let original = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/ÄWorkspace",
+            defaultAccountID: account.id,
+            includePatterns: ["apps/*"],
+            excludePatterns: [".build"]
+        )
+        let replacement = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/äworkspace/",
+            defaultAccountID: account.id,
+            includePatterns: ["tools/*"],
+            excludePatterns: ["DerivedData"]
+        )
+
+        try accountStore.save(account)
+        try store.save(original)
+        try store.save(replacement)
+        let rules = try store.fetchAll()
+
+        #expect(rules.count == 1)
+        #expect(rules[0].id == original.id)
         #expect(rules[0].includePatterns == replacement.includePatterns)
         #expect(rules[0].excludePatterns == replacement.excludePatterns)
     }

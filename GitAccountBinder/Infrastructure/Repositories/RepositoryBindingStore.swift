@@ -9,8 +9,8 @@ struct RepositoryBindingStore {
     }
 
     func save(_ binding: RepositoryBinding) throws {
-        let normalizedRepositoryPath = Self.normalizedPath(binding.repositoryPath)
-        let repositoryPathKey = Self.pathLookupKey(normalizedRepositoryPath)
+        let normalizedRepositoryPath = PersistencePathNormalizer.normalizedStoredPath(binding.repositoryPath)
+        let repositoryPathKey = PersistencePathNormalizer.logicalLookupKey(for: normalizedRepositoryPath)
 
         try databaseWriter.write { db in
             let existingIDMatch = try String.fetchOne(
@@ -18,11 +18,17 @@ struct RepositoryBindingStore {
                 sql: "SELECT id FROM repository_bindings WHERE id = ?",
                 arguments: [binding.id.uuidString]
             )
-            let existingRepositoryPathMatch = try String.fetchOne(
+            let existingRepositoryPathMatch = try Row.fetchAll(
                 db,
-                sql: "SELECT id FROM repository_bindings WHERE lower(repository_path) = ?",
-                arguments: [repositoryPathKey]
+                sql: "SELECT id, repository_path FROM repository_bindings"
             )
+            .first { row in
+                let existingPath: String = row["repository_path"]
+                return PersistencePathNormalizer.logicalLookupKey(for: existingPath) == repositoryPathKey
+            }
+            .flatMap { row -> String? in
+                row["id"]
+            }
 
             if let existingIDMatch, let existingRepositoryPathMatch, existingIDMatch != existingRepositoryPathMatch {
                 throw DatabaseError(
@@ -104,23 +110,6 @@ struct RepositoryBindingStore {
 
             return try rows.map(Self.makeBinding)
         }
-    }
-
-    private static func normalizedPath(_ path: String) -> String {
-        var normalized = URL(fileURLWithPath: path)
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-            .path
-
-        if normalized.count > 1 {
-            normalized = normalized.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
-        }
-
-        return normalized
-    }
-
-    private static func pathLookupKey(_ path: String) -> String {
-        normalizedPath(path).lowercased()
     }
 
     private static func makeBinding(from row: Row) throws -> RepositoryBinding {
