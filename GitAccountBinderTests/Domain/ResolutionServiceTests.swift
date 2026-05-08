@@ -2,44 +2,6 @@ import Foundation
 import Testing
 @testable import GitAccountBinder
 
-private struct Account {
-    enum PlatformType: String {
-        case github
-        case gitlab
-        case gitee
-        case custom
-    }
-
-    let id: UUID
-    let displayName: String
-    let gitUserName: String
-    let gitUserEmail: String
-    let platformType: PlatformType
-    let sshKeyID: UUID?
-    let signingKey: String?
-    let isGlobalDefault: Bool
-
-    init(
-        id: UUID,
-        displayName: String,
-        gitUserName: String,
-        gitUserEmail: String,
-        platformType: PlatformType,
-        sshKeyID: UUID?,
-        signingKey: String?,
-        isGlobalDefault: Bool
-    ) {
-        self.id = id
-        self.displayName = displayName
-        self.gitUserName = gitUserName
-        self.gitUserEmail = gitUserEmail
-        self.platformType = platformType
-        self.sshKeyID = sshKeyID
-        self.signingKey = signingKey
-        self.isGlobalDefault = false
-    }
-}
-
 struct ResolutionServiceTests {
     @Test
     func accountModelSupportsDefaultFlag() {
@@ -55,5 +17,28 @@ struct ResolutionServiceTests {
         )
 
         #expect(account.isGlobalDefault)
+    }
+
+    @Test
+    func accountStoreRoundTripsDefaultFlag() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let store = AccountStore(databaseWriter: databaseManager.writer)
+        let account = Account(
+            id: UUID(),
+            displayName: "工作账号",
+            gitUserName: "worker",
+            gitUserEmail: "worker@example.com",
+            platformType: .gitlab,
+            sshKeyID: UUID(),
+            signingKey: "ABC123",
+            isGlobalDefault: true
+        )
+
+        try store.save(account)
+        let accounts = try store.fetchAll()
+
+        #expect(accounts.count == 1)
+        #expect(accounts.first?.isGlobalDefault == true)
+        #expect(accounts.first?.platformType == .gitlab)
     }
 }

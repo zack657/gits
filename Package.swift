@@ -7,9 +7,15 @@ let package = Package(
     platforms: [
         .macOS(.v14)
     ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.10.0")
+    ],
     targets: [
         .executableTarget(
             name: "GitAccountBinder",
+            dependencies: [
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
             path: "GitAccountBinder"
         ),
         .testTarget(
