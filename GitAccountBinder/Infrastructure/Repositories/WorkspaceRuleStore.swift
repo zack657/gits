@@ -28,17 +28,27 @@ struct WorkspaceRuleStore {
                 sql: "SELECT id FROM workspace_rules WHERE id = ?",
                 arguments: [rule.id.uuidString]
             )
-            let existingWorkspaceRootPathMatch = try Row.fetchAll(
+            let existingWorkspaceRootPathMatches = try Row.fetchAll(
                 db,
                 sql: "SELECT id, workspace_root_path FROM workspace_rules"
             )
-            .first { row in
+            .filter { row in
                 let existingPath: String = row["workspace_root_path"]
                 return PersistencePathNormalizer.logicalLookupKey(for: existingPath) == workspaceRootPathKey
             }
-            .flatMap { row -> String? in
+            .compactMap { row -> String? in
                 row["id"]
             }
+
+            let distinctWorkspaceRootPathMatches = Array(Set(existingWorkspaceRootPathMatches))
+
+            if distinctWorkspaceRootPathMatches.count > 1 {
+                throw DatabaseError(
+                    message: "Ambiguous workspace rule save conflict for workspace root path \(normalizedWorkspaceRootPath): multiple logical path matches exist"
+                )
+            }
+
+            let existingWorkspaceRootPathMatch = distinctWorkspaceRootPathMatches.first
 
             if let existingIDMatch, let existingWorkspaceRootPathMatch, existingIDMatch != existingWorkspaceRootPathMatch {
                 throw DatabaseError(

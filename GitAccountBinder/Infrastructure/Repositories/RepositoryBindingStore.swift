@@ -18,17 +18,27 @@ struct RepositoryBindingStore {
                 sql: "SELECT id FROM repository_bindings WHERE id = ?",
                 arguments: [binding.id.uuidString]
             )
-            let existingRepositoryPathMatch = try Row.fetchAll(
+            let existingRepositoryPathMatches = try Row.fetchAll(
                 db,
                 sql: "SELECT id, repository_path FROM repository_bindings"
             )
-            .first { row in
+            .filter { row in
                 let existingPath: String = row["repository_path"]
                 return PersistencePathNormalizer.logicalLookupKey(for: existingPath) == repositoryPathKey
             }
-            .flatMap { row -> String? in
+            .compactMap { row -> String? in
                 row["id"]
             }
+
+            let distinctRepositoryPathMatches = Array(Set(existingRepositoryPathMatches))
+
+            if distinctRepositoryPathMatches.count > 1 {
+                throw DatabaseError(
+                    message: "Ambiguous repository binding save conflict for repository path \(normalizedRepositoryPath): multiple logical path matches exist"
+                )
+            }
+
+            let existingRepositoryPathMatch = distinctRepositoryPathMatches.first
 
             if let existingIDMatch, let existingRepositoryPathMatch, existingIDMatch != existingRepositoryPathMatch {
                 throw DatabaseError(

@@ -337,6 +337,59 @@ struct PersistenceStoreTests {
     }
 
     @Test
+    func repositoryBindingSaveThrowsWhenLegacyRowsShareSameLogicalPath() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = RepositoryBindingStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "脏数据绑定账号",
+            createdAt: Date(timeIntervalSince1970: 4_500),
+            updatedAt: Date(timeIntervalSince1970: 4_500)
+        )
+
+        try accountStore.save(account)
+        try databaseManager.writer.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO repository_bindings (
+                    id, repository_path, account_id, remote_url, branch_pattern, priority, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString, "/tmp/ÄLegacyRepo", account.id.uuidString, "git@github.com:legacy/one.git", "main", 1, Date(timeIntervalSince1970: 4_500), Date(timeIntervalSince1970: 4_500)
+                ]
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO repository_bindings (
+                    id, repository_path, account_id, remote_url, branch_pattern, priority, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString, "/tmp/älegacyrepo/", account.id.uuidString, "git@github.com:legacy/two.git", "release/*", 2, Date(timeIntervalSince1970: 4_600), Date(timeIntervalSince1970: 4_600)
+                ]
+            )
+        }
+
+        do {
+            try store.save(
+                RepositoryBinding(
+                    id: UUID(),
+                    repositoryPath: "/tmp/älegacyrepo",
+                    accountID: account.id,
+                    remoteURL: "git@github.com:legacy/new.git",
+                    branchPattern: "hotfix/*",
+                    priority: 9
+                )
+            )
+            Issue.record("Expected legacy duplicate logical repository paths to throw")
+        } catch {
+            #expect(String(describing: error).contains("multiple logical path matches exist"))
+        }
+    }
+
+    @Test
     func workspaceRuleSaveThrowsOnConflictingIdentifierAndWorkspaceRootMatches() throws {
         let databaseManager = try DatabaseManager.inMemory()
         let accountStore = AccountStore(databaseWriter: databaseManager.writer)
@@ -401,6 +454,58 @@ struct PersistenceStoreTests {
         #expect(rules.first(where: { $0.id == logicalKeyMatched.id })?.workspaceRootPath == logicalKeyMatched.workspaceRootPath)
         #expect(rules.first(where: { $0.id == idMatched.id })?.defaultAccountID == idMatched.defaultAccountID)
         #expect(rules.first(where: { $0.id == logicalKeyMatched.id })?.defaultAccountID == logicalKeyMatched.defaultAccountID)
+    }
+
+    @Test
+    func workspaceRuleSaveThrowsWhenLegacyRowsShareSameLogicalPath() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let store = WorkspaceRuleStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "脏数据规则账号",
+            createdAt: Date(timeIntervalSince1970: 23_000),
+            updatedAt: Date(timeIntervalSince1970: 23_000)
+        )
+
+        try accountStore.save(account)
+        try databaseManager.writer.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO workspace_rules (
+                    id, workspace_root_path, default_account_id, include_patterns, exclude_patterns, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString, "/tmp/ÄLegacyWorkspace", account.id.uuidString, "[\"apps/*\"]", "[\".build\"]", Date(timeIntervalSince1970: 23_000), Date(timeIntervalSince1970: 23_000)
+                ]
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO workspace_rules (
+                    id, workspace_root_path, default_account_id, include_patterns, exclude_patterns, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    UUID().uuidString, "/tmp/älegacyworkspace/", account.id.uuidString, "[\"tools/*\"]", "[\"DerivedData\"]", Date(timeIntervalSince1970: 23_100), Date(timeIntervalSince1970: 23_100)
+                ]
+            )
+        }
+
+        do {
+            try store.save(
+                WorkspaceRule(
+                    id: UUID(),
+                    workspaceRootPath: "/tmp/älegacyworkspace",
+                    defaultAccountID: account.id,
+                    includePatterns: ["shared/*"],
+                    excludePatterns: ["tmp/cache"]
+                )
+            )
+            Issue.record("Expected legacy duplicate logical workspace roots to throw")
+        } catch {
+            #expect(String(describing: error).contains("multiple logical path matches exist"))
+        }
     }
 
     @Test
