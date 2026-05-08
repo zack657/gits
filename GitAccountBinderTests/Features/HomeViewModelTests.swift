@@ -1,7 +1,7 @@
 import Testing
 @testable import GitAccountBinder
 
-struct HomeViewModelTests {
+struct AppStringsTests {
     @Test
     func homeTitleUsesChineseDefaultCopy() {
         #expect(AppStrings.homeTitle == "Git 账号绑定器")

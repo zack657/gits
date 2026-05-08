@@ -1,8 +1,6 @@
 import Foundation
 
-@MainActor
-@Observable
-final class AppRouter {
+struct AppRouter {
     enum SidebarDestination: Hashable {
         case accounts
         case repositories
