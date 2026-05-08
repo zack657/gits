@@ -29,4 +29,8 @@ struct RepositoryRecord: Identifiable, Codable, Equatable, Sendable {
         self.lastScannedAt = lastScannedAt
         self.isActive = isActive
     }
+
+    var path: String {
+        repositoryPath
+    }
 }

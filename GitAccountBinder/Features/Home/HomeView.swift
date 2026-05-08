@@ -8,10 +8,7 @@ struct HomeView: View {
             sidebarContent
                 .navigationSplitViewColumnWidth(min: 240, ideal: 280)
         } detail: {
-            EmptyStateView(
-                title: AppStrings.repositoriesTitle,
-                message: "还没有仓库"
-            )
+            RepositoryListView(repositories: container.homeViewModel.repositories)
         }
         .navigationTitle(AppStrings.homeTitle)
     }
@@ -20,15 +17,9 @@ struct HomeView: View {
     private var sidebarContent: some View {
         switch container.router.defaultSidebarSelection {
         case .accounts:
-            EmptyStateView(
-                title: AppStrings.accountsTitle,
-                message: "还没有账号"
-            )
+            AccountListView(accounts: container.homeViewModel.accounts)
         case .repositories:
-            EmptyStateView(
-                title: AppStrings.repositoriesTitle,
-                message: "还没有仓库"
-            )
+            RepositoryListView(repositories: container.homeViewModel.repositories)
         }
     }
 }
