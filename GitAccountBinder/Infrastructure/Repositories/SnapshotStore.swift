@@ -10,38 +10,60 @@ struct SnapshotStore {
 
     func save(_ snapshot: ConfigSnapshot) throws {
         try databaseWriter.write { db in
-            try db.execute(
-                sql: """
-                INSERT INTO config_snapshots (
-                    id,
-                    scope,
-                    target_path,
-                    git_config_content,
-                    ssh_config_content,
-                    known_hosts_content,
-                    note,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    scope = excluded.scope,
-                    target_path = excluded.target_path,
-                    git_config_content = excluded.git_config_content,
-                    ssh_config_content = excluded.ssh_config_content,
-                    known_hosts_content = excluded.known_hosts_content,
-                    note = excluded.note,
-                    created_at = excluded.created_at
-                """,
-                arguments: [
-                    snapshot.id.uuidString,
-                    snapshot.scope.rawValue,
-                    snapshot.targetPath,
-                    snapshot.gitConfigContent,
-                    snapshot.sshConfigContent,
-                    snapshot.knownHostsContent,
-                    snapshot.note,
-                    snapshot.createdAt
-                ]
+            let existingID = try String.fetchOne(
+                db,
+                sql: "SELECT id FROM config_snapshots WHERE id = ?",
+                arguments: [snapshot.id.uuidString]
             )
+
+            if let existingID {
+                try db.execute(
+                    sql: """
+                    UPDATE config_snapshots
+                    SET scope = ?,
+                        target_path = ?,
+                        git_config_content = ?,
+                        ssh_config_content = ?,
+                        known_hosts_content = ?,
+                        note = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        snapshot.scope.rawValue,
+                        snapshot.targetPath,
+                        snapshot.gitConfigContent,
+                        snapshot.sshConfigContent,
+                        snapshot.knownHostsContent,
+                        snapshot.note,
+                        existingID
+                    ]
+                )
+            } else {
+                try db.execute(
+                    sql: """
+                    INSERT INTO config_snapshots (
+                        id,
+                        scope,
+                        target_path,
+                        git_config_content,
+                        ssh_config_content,
+                        known_hosts_content,
+                        note,
+                        created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        snapshot.id.uuidString,
+                        snapshot.scope.rawValue,
+                        snapshot.targetPath,
+                        snapshot.gitConfigContent,
+                        snapshot.sshConfigContent,
+                        snapshot.knownHostsContent,
+                        snapshot.note,
+                        snapshot.createdAt
+                    ]
+                )
+            }
         }
     }
 

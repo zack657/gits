@@ -190,6 +190,89 @@ struct PersistenceStoreTests {
         #expect(accounts[0].updatedAt == updatedAt)
     }
 
+    @Test
+    func snapshotStorePreservesCreatedAtWhenUpdatingExistingSnapshot() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let store = SnapshotStore(databaseWriter: databaseManager.writer)
+        let snapshotID = UUID()
+        let originalCreatedAt = Date(timeIntervalSince1970: 700)
+        let updatedCreatedAt = Date(timeIntervalSince1970: 1_400)
+        let original = ConfigSnapshot(
+            id: snapshotID,
+            scope: .global,
+            targetPath: "/tmp/.gitconfig",
+            gitConfigContent: "[user]\n\tname = old",
+            sshConfigContent: "Host old",
+            knownHostsContent: "github.com ssh-ed25519 AAAA",
+            note: "original",
+            createdAt: originalCreatedAt
+        )
+        let updated = ConfigSnapshot(
+            id: snapshotID,
+            scope: .repository,
+            targetPath: "/tmp/repo/.git/config",
+            gitConfigContent: "[user]\n\tname = new",
+            sshConfigContent: "Host new",
+            knownHostsContent: nil,
+            note: "updated",
+            createdAt: updatedCreatedAt
+        )
+
+        try store.save(original)
+        try store.save(updated)
+        let snapshots = try store.fetchAll()
+
+        #expect(snapshots.count == 1)
+        #expect(snapshots[0].id == snapshotID)
+        #expect(snapshots[0].scope == updated.scope)
+        #expect(snapshots[0].targetPath == updated.targetPath)
+        #expect(snapshots[0].gitConfigContent == updated.gitConfigContent)
+        #expect(snapshots[0].sshConfigContent == updated.sshConfigContent)
+        #expect(snapshots[0].knownHostsContent == updated.knownHostsContent)
+        #expect(snapshots[0].note == updated.note)
+        #expect(snapshots[0].createdAt == originalCreatedAt)
+    }
+
+    @Test
+    func accountStoreKeepsOnlyOneGlobalDefaultAfterSavingNewDefault() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let store = AccountStore(databaseWriter: databaseManager.writer)
+        let firstDefault = Account(
+            id: UUID(),
+            displayName: "默认账号A",
+            gitUserName: "default-a",
+            gitUserEmail: "default-a@example.com",
+            platformType: .github,
+            sshKeyID: nil,
+            signingKey: nil,
+            isGlobalDefault: true,
+            createdAt: Date(timeIntervalSince1970: 50),
+            updatedAt: Date(timeIntervalSince1970: 50)
+        )
+        let secondDefault = Account(
+            id: UUID(),
+            displayName: "默认账号B",
+            gitUserName: "default-b",
+            gitUserEmail: "default-b@example.com",
+            platformType: .gitlab,
+            sshKeyID: nil,
+            signingKey: nil,
+            isGlobalDefault: true,
+            createdAt: Date(timeIntervalSince1970: 100),
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+
+        try store.save(firstDefault)
+        try store.save(secondDefault)
+        let accounts = try store.fetchAll()
+        let defaults = accounts.filter(\.isGlobalDefault)
+
+        #expect(accounts.count == 2)
+        #expect(defaults.count == 1)
+        #expect(defaults[0].id == secondDefault.id)
+        #expect(accounts.first(where: { $0.id == firstDefault.id })?.isGlobalDefault == false)
+    }
+
     private func makeAccount(
         id: UUID,
         name: String,
