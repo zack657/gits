@@ -50,7 +50,7 @@ struct PersistenceStoreTests {
         let bindings = try store.fetchAll()
 
         #expect(bindings.count == 1)
-        #expect(bindings[0].id == replacement.id)
+        #expect(bindings[0].id == original.id)
         #expect(bindings[0].repositoryPath == replacement.repositoryPath)
         #expect(bindings[0].accountID == replacement.accountID)
         #expect(bindings[0].remoteURL == replacement.remoteURL)
@@ -105,13 +105,82 @@ struct PersistenceStoreTests {
         let rules = try store.fetchAll()
 
         #expect(rules.count == 1)
-        #expect(rules[0].id == replacement.id)
+        #expect(rules[0].id == original.id)
         #expect(rules[0].workspaceRootPath == replacement.workspaceRootPath)
         #expect(rules[0].defaultAccountID == replacement.defaultAccountID)
         #expect(rules[0].includePatterns == replacement.includePatterns)
         #expect(rules[0].excludePatterns == replacement.excludePatterns)
         #expect(rules[0].createdAt == originalCreatedAt)
         #expect(rules[0].updatedAt == updatedAt)
+    }
+
+    @Test
+    func deletingAccountCascadeDeletesRelatedRepositoryBindings() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let bindingStore = RepositoryBindingStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "级联绑定账号",
+            createdAt: Date(timeIntervalSince1970: 40_000),
+            updatedAt: Date(timeIntervalSince1970: 40_000)
+        )
+        let binding = RepositoryBinding(
+            id: UUID(),
+            repositoryPath: "/tmp/repo-cascade",
+            accountID: account.id,
+            remoteURL: "git@github.com:cascade/repo.git",
+            branchPattern: "main",
+            priority: 1
+        )
+
+        try accountStore.save(account)
+        try bindingStore.save(binding)
+
+        try databaseManager.writer.write { db in
+            try db.execute(
+                sql: "DELETE FROM accounts WHERE id = ?",
+                arguments: [account.id.uuidString]
+            )
+        }
+
+        let bindings = try bindingStore.fetchAll()
+        #expect(bindings.isEmpty)
+    }
+
+    @Test
+    func deletingAccountNullsWorkspaceRuleDefaultAccount() throws {
+        let databaseManager = try DatabaseManager.inMemory()
+        let accountStore = AccountStore(databaseWriter: databaseManager.writer)
+        let ruleStore = WorkspaceRuleStore(databaseWriter: databaseManager.writer)
+        let account = makeAccount(
+            id: UUID(),
+            name: "置空规则账号",
+            createdAt: Date(timeIntervalSince1970: 50_000),
+            updatedAt: Date(timeIntervalSince1970: 50_000)
+        )
+        let rule = WorkspaceRule(
+            id: UUID(),
+            workspaceRootPath: "/tmp/workspace-null-default",
+            defaultAccountID: account.id,
+            includePatterns: ["apps/*"],
+            excludePatterns: [".build"]
+        )
+
+        try accountStore.save(account)
+        try ruleStore.save(rule)
+
+        try databaseManager.writer.write { db in
+            try db.execute(
+                sql: "DELETE FROM accounts WHERE id = ?",
+                arguments: [account.id.uuidString]
+            )
+        }
+
+        let rules = try ruleStore.fetchAll()
+        #expect(rules.count == 1)
+        #expect(rules[0].id == rule.id)
+        #expect(rules[0].defaultAccountID == nil)
     }
 
     @Test

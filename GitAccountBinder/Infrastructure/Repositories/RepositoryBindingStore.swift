@@ -30,8 +30,7 @@ struct RepositoryBindingStore {
                 try db.execute(
                     sql: """
                     UPDATE repository_bindings
-                    SET id = ?,
-                        repository_path = ?,
+                    SET repository_path = ?,
                         account_id = ?,
                         remote_url = ?,
                         branch_pattern = ?,
@@ -40,7 +39,6 @@ struct RepositoryBindingStore {
                     WHERE id = ?
                     """,
                     arguments: [
-                        binding.id.uuidString,
                         binding.repositoryPath,
                         binding.accountID.uuidString,
                         binding.remoteURL,

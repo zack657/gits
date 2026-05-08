@@ -41,8 +41,7 @@ struct WorkspaceRuleStore {
                 try db.execute(
                     sql: """
                     UPDATE workspace_rules
-                    SET id = ?,
-                        workspace_root_path = ?,
+                    SET workspace_root_path = ?,
                         default_account_id = ?,
                         include_patterns = ?,
                         exclude_patterns = ?,
@@ -50,7 +49,6 @@ struct WorkspaceRuleStore {
                     WHERE id = ?
                     """,
                     arguments: [
-                        rule.id.uuidString,
                         rule.workspaceRootPath,
                         rule.defaultAccountID?.uuidString,
                         includePatterns,
