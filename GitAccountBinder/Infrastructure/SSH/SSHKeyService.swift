@@ -5,7 +5,12 @@ struct SSHKeyPair: Equatable, Sendable {
     let publicKeyPath: String
 }
 
-final class SSHKeyService {
+protocol SSHKeyGenerating: Sendable {
+    func generateKeyPair(accountID: UUID, keyName: String) throws -> SSHKeyPair
+    func readPublicKey(at path: String) throws -> String
+}
+
+final class SSHKeyService: SSHKeyGenerating, @unchecked Sendable {
     private let paths: AppPathService
     private let runner: ShellCommandRunning
 
@@ -35,5 +40,10 @@ final class SSHKeyService {
             privateKeyPath: privateKeyPath,
             publicKeyPath: "\(privateKeyPath).pub"
         )
+    }
+
+    func readPublicKey(at path: String) throws -> String {
+        try String(contentsOfFile: path, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

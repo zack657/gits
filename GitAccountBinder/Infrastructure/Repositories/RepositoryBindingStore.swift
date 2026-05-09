@@ -122,6 +122,31 @@ struct RepositoryBindingStore {
         }
     }
 
+    func delete(repositoryPath: String) throws {
+        let normalizedRepositoryPath = PersistencePathNormalizer.normalizedStoredPath(repositoryPath)
+        let repositoryPathKey = PersistencePathNormalizer.logicalLookupKey(for: normalizedRepositoryPath)
+
+        try databaseWriter.write { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT id, repository_path FROM repository_bindings"
+            )
+            let matchingIDs = rows.compactMap { row -> String? in
+                let existingPath: String = row["repository_path"]
+                return PersistencePathNormalizer.logicalLookupKey(for: existingPath) == repositoryPathKey
+                    ? row["id"]
+                    : nil
+            }
+
+            for id in matchingIDs {
+                try db.execute(
+                    sql: "DELETE FROM repository_bindings WHERE id = ?",
+                    arguments: [id]
+                )
+            }
+        }
+    }
+
     private static func makeBinding(from row: Row) throws -> RepositoryBinding {
         guard
             let id = UUID(uuidString: row["id"]),

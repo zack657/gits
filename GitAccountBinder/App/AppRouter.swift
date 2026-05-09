@@ -2,6 +2,7 @@ import Foundation
 
 struct AppRouter {
     enum SidebarDestination: Hashable {
+        case workbench
         case accounts
         case repositories
         case workspaceDefaults
@@ -9,5 +10,5 @@ struct AppRouter {
         case diagnostics
     }
 
-    let defaultSidebarSelection: SidebarDestination = .accounts
+    let defaultSidebarSelection: SidebarDestination = .workbench
 }

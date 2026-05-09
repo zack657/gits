@@ -57,6 +57,34 @@ enum Migrations {
             }
         }
 
+        migrator.registerMigration("v2_create_ssh_key_guidance") { db in
+            try db.create(table: "ssh_key_guidance") { table in
+                table.column("account_id", .text)
+                    .notNull()
+                    .primaryKey()
+                    .references("accounts", onDelete: .cascade)
+                table.column("private_key_path", .text).notNull()
+                table.column("public_key_path", .text).notNull()
+                table.column("public_key", .text).notNull()
+                table.column("github_ssh_keys_url", .text).notNull()
+                table.column("status_text", .text).notNull()
+                table.column("deploy_key_warning", .text).notNull()
+                table.column("is_ready", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v3_normalize_application_support_paths") { db in
+            try db.execute(
+                sql: """
+                UPDATE ssh_key_guidance
+                SET private_key_path = REPLACE(private_key_path, 'Application%20Support', 'Application Support'),
+                    public_key_path = REPLACE(public_key_path, 'Application%20Support', 'Application Support')
+                WHERE private_key_path LIKE '%Application%20Support%'
+                   OR public_key_path LIKE '%Application%20Support%'
+                """
+            )
+        }
+
         return migrator
     }()
 }

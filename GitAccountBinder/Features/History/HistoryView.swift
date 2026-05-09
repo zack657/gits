@@ -8,12 +8,37 @@ struct HistoryView: View {
             EmptyStateView(title: "历史版本", message: "还没有快照")
         } else {
             List(viewModel.snapshots) { snapshot in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(snapshot.note ?? "未命名快照")
-                    Text(snapshot.createdAt.formatted())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(snapshot.note ?? "未命名快照")
+                        Text(snapshot.createdAt.formatted())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("恢复到此版本") {
+                        viewModel.restore(snapshot: snapshot)
+                    }
                 }
+            }
+            .alert(
+                "历史版本",
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            viewModel.errorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("好") {
+                    viewModel.errorMessage = nil
+                }
+            } message: {
+                Text(viewModel.errorMessage ?? "")
             }
         }
     }

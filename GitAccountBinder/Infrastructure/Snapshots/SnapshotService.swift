@@ -52,6 +52,10 @@ final class SnapshotService {
                 try fileManager.removeItem(at: originalURL)
             }
 
+            try fileManager.createDirectory(
+                at: originalURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try fileManager.copyItem(at: backupURL, to: originalURL)
         }
     }

@@ -112,6 +112,15 @@ struct AccountStore {
         }
     }
 
+    func delete(id accountID: UUID) throws {
+        try databaseWriter.write { db in
+            try db.execute(
+                sql: "DELETE FROM accounts WHERE id = ?",
+                arguments: [accountID.uuidString]
+            )
+        }
+    }
+
     private static func makeAccount(from row: Row) throws -> Account {
         guard
             let id = UUID(uuidString: row["id"]),
