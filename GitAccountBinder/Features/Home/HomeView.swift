@@ -19,9 +19,6 @@ struct HomeView: View {
     private var sidebarNavigation: some View {
         List(selection: $selection) {
             NavigationLink(AppStrings.workbenchTitle, value: AppRouter.SidebarDestination.workbench)
-            NavigationLink(AppStrings.accountsTitle, value: AppRouter.SidebarDestination.accounts)
-            NavigationLink(AppStrings.repositoriesTitle, value: AppRouter.SidebarDestination.repositories)
-            NavigationLink(AppStrings.workspaceDefaultsTitle, value: AppRouter.SidebarDestination.workspaceDefaults)
             NavigationLink(AppStrings.historyTitle, value: AppRouter.SidebarDestination.history)
             NavigationLink(AppStrings.diagnosticsTitle, value: AppRouter.SidebarDestination.diagnostics)
         }
@@ -36,12 +33,6 @@ struct HomeView: View {
                 viewModel: container.homeViewModel,
                 onApplied: container.reloadSnapshots
             )
-        case .accounts:
-            AccountListView(accounts: container.homeViewModel.accounts)
-        case .repositories:
-            RepositoryListView(repositories: container.homeViewModel.repositories)
-        case .workspaceDefaults:
-            WorkspaceDefaultsView(viewModel: container.workspaceDefaultsViewModel)
         case .history:
             HistoryView(viewModel: container.historyViewModel)
         case .diagnostics:
@@ -182,7 +173,7 @@ struct AccountRepositoryWorkbenchView: View {
                     guidance: viewModel.sshKeyGuidanceByAccountID[account.id],
                     canDelete: viewModel.accounts.count > 1,
                     onConfirmGitHubKeyAdded: {
-                        viewModel.confirmGitHubKeyAdded(accountID: account.id)
+                        viewModel.testGitHubSSHConnection(accountID: account.id)
                     },
                     onDelete: {
                         viewModel.deleteAccount(id: account.id)
@@ -336,9 +327,8 @@ private struct AccountWorkbenchRow: View {
                         }
 
                         Button(action: onConfirmGitHubKeyAdded) {
-                            Label("我已添加", systemImage: "checkmark.circle")
+                            Label("测试连接", systemImage: "network")
                         }
-                        .disabled(guidance.isReady)
                     }
                     .font(.caption)
                 }

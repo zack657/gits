@@ -13,6 +13,7 @@ Git 自带配置能力很强，但当个人项目、公司项目、客户项目�
 - 管理多个 Git 账号，包括 Git 用户名和邮箱。
 - 新增 GitHub 账号时自动生成独立 SSH key。
 - 复制 public key，并打开 GitHub SSH key 设置页面。
+- 真实测试生成的 SSH key 是否能连接 GitHub，并且只有认证到的 GitHub 登录名匹配当前账号时才标记就绪。
 - 新增和删除本地仓库管理项。
 - 将每个仓库绑定到指定 Git 账号。
 - 将绑定关系应用到仓库本地 `.git/config`。
@@ -43,6 +44,8 @@ GitHub Settings -> SSH and GPG keys
 ```
 
 不要把这些账号 key 添加到仓库的 Deploy keys。Deploy keys 是仓库级 key，不属于当前 MVP 范围。
+
+把 public key 添加到 GitHub 后，请在 App 里点击连接测试按钮。如果 GitHub 认证出来的是另一个账号，这个账号不应被标记为就绪。
 
 ## 环境要求
 

@@ -15,6 +15,14 @@ private struct FakeSSHKeyGenerator: SSHKeyGenerating {
     }
 }
 
+private struct FakeGitHubSSHTester: GitHubSSHTesting {
+    let result: GitHubSSHTestResult
+
+    func testConnection(privateKeyPath: String) throws -> GitHubSSHTestResult {
+        result
+    }
+}
+
 struct HomeViewModelTests {
     @Test
     func bindStoresSelectedAccountForRepositoryPath() {
@@ -126,19 +134,51 @@ struct HomeViewModelTests {
     }
 
     @Test
-    func confirmGitHubKeyAddedMarksAccountReady() throws {
-        let viewModel = HomeViewModel(sshKeyGenerator: FakeSSHKeyGenerator())
+    func testGitHubSSHConnectionMarksMatchingAccountReady() throws {
+        let viewModel = HomeViewModel(
+            sshKeyGenerator: FakeSSHKeyGenerator(),
+            githubSSHTester: FakeGitHubSSHTester(
+                result: GitHubSSHTestResult(
+                    authenticatedLogin: "Chen Team",
+                    rawOutput: "Hi Chen Team! You've successfully authenticated."
+                )
+            )
+        )
         let accountID = try viewModel.addAccount(
             displayName: "公司 GitHub",
             gitUserName: "Chen Team",
             gitUserEmail: "chen.team@company.com"
         )
 
-        viewModel.confirmGitHubKeyAdded(accountID: accountID)
+        viewModel.testGitHubSSHConnection(accountID: accountID)
 
         let guidance = try #require(viewModel.sshKeyGuidanceByAccountID[accountID])
-        #expect(guidance.statusText == "GitHub SSH key 已就绪")
+        #expect(guidance.statusText == "GitHub SSH 连接成功：Chen Team")
         #expect(guidance.isReady == true)
+    }
+
+    @Test
+    func testGitHubSSHConnectionKeepsMismatchedAccountNotReady() throws {
+        let viewModel = HomeViewModel(
+            sshKeyGenerator: FakeSSHKeyGenerator(),
+            githubSSHTester: FakeGitHubSSHTester(
+                result: GitHubSSHTestResult(
+                    authenticatedLogin: "zack-commits",
+                    rawOutput: "Hi zack-commits! You've successfully authenticated."
+                )
+            )
+        )
+        let accountID = try viewModel.addAccount(
+            displayName: "zack657",
+            gitUserName: "zack657",
+            gitUserEmail: "zjc348@gmail.com"
+        )
+
+        viewModel.testGitHubSSHConnection(accountID: accountID)
+
+        let guidance = try #require(viewModel.sshKeyGuidanceByAccountID[accountID])
+        #expect(guidance.statusText == "SSH key 属于 zack-commits，不匹配当前账号 zack657")
+        #expect(guidance.isReady == false)
     }
 
     @Test
@@ -203,6 +243,12 @@ struct HomeViewModelTests {
 
         let firstViewModel = HomeViewModel(
             sshKeyGenerator: FakeSSHKeyGenerator(),
+            githubSSHTester: FakeGitHubSSHTester(
+                result: GitHubSSHTestResult(
+                    authenticatedLogin: "Persisted User",
+                    rawOutput: "Hi Persisted User!"
+                )
+            ),
             accountStore: accountStore,
             repositoryBindingStore: bindingStore,
             sshKeyGuidanceStore: guidanceStore
@@ -212,7 +258,7 @@ struct HomeViewModelTests {
             gitUserName: "Persisted User",
             gitUserEmail: "persisted@example.com"
         )
-        firstViewModel.confirmGitHubKeyAdded(accountID: accountID)
+        firstViewModel.testGitHubSSHConnection(accountID: accountID)
         try firstViewModel.addRepository(path: repo.path(), accountID: accountID)
 
         let reloadedViewModel = HomeViewModel(
@@ -227,6 +273,6 @@ struct HomeViewModelTests {
         #expect(reloadedViewModel.repositories.map(\.repositoryName) == ["persisted-app"])
         #expect(reloadedViewModel.bindingAccountID(forRepositoryPath: repo.path()) == accountID)
         #expect(reloadedViewModel.sshKeyGuidanceByAccountID[accountID]?.isReady == true)
-        #expect(reloadedViewModel.sshKeyGuidanceByAccountID[accountID]?.statusText == "GitHub SSH key 已就绪")
+        #expect(reloadedViewModel.sshKeyGuidanceByAccountID[accountID]?.statusText == "GitHub SSH 连接成功：Persisted User")
     }
 }

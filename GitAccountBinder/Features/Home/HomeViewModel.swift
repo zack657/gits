@@ -23,6 +23,7 @@ final class HomeViewModel {
     var errorMessage: String?
 
     private let sshKeyGenerator: any SSHKeyGenerating
+    private let githubSSHTester: any GitHubSSHTesting
     private let gitConfigApplyService: GitConfigApplyService
     private let accountStore: AccountStore?
     private let repositoryBindingStore: RepositoryBindingStore?
@@ -34,6 +35,10 @@ final class HomeViewModel {
             paths: .applicationSupportDefault,
             runner: ShellCommandRunner()
         ),
+        githubSSHTester: any GitHubSSHTesting = SSHKeyService(
+            paths: .applicationSupportDefault,
+            runner: ShellCommandRunner()
+        ),
         gitConfigApplyService: GitConfigApplyService = GitConfigApplyService(),
         accountStore: AccountStore? = nil,
         repositoryBindingStore: RepositoryBindingStore? = nil,
@@ -41,6 +46,7 @@ final class HomeViewModel {
         snapshotStore: SnapshotStore? = nil
     ) {
         self.sshKeyGenerator = sshKeyGenerator
+        self.githubSSHTester = githubSSHTester
         self.gitConfigApplyService = gitConfigApplyService
         self.accountStore = accountStore
         self.repositoryBindingStore = repositoryBindingStore
@@ -130,24 +136,35 @@ final class HomeViewModel {
         return accountID
     }
 
-    func confirmGitHubKeyAdded(accountID: UUID) {
-        guard let guidance = sshKeyGuidanceByAccountID[accountID] else {
+    func testGitHubSSHConnection(accountID: UUID) {
+        guard let guidance = sshKeyGuidanceByAccountID[accountID],
+              let account = accounts.first(where: { $0.id == accountID }) else {
             return
         }
 
-        let updatedGuidance = SSHKeyGuidance(
-            accountID: guidance.accountID,
-            privateKeyPath: guidance.privateKeyPath,
-            publicKeyPath: guidance.publicKeyPath,
-            publicKey: guidance.publicKey,
-            githubSSHKeysURL: guidance.githubSSHKeysURL,
-            statusText: "GitHub SSH key 已就绪",
-            deployKeyWarning: guidance.deployKeyWarning,
-            isReady: true
-        )
-        sshKeyGuidanceByAccountID[accountID] = updatedGuidance
-
         do {
+            let result = try githubSSHTester.testConnection(privateKeyPath: guidance.privateKeyPath)
+            let updatedGuidance: SSHKeyGuidance
+
+            if let authenticatedLogin = result.authenticatedLogin,
+               account.matchesGitHubLogin(authenticatedLogin) {
+                updatedGuidance = guidance.updatingStatus(
+                    "GitHub SSH 连接成功：\(authenticatedLogin)",
+                    isReady: true
+                )
+            } else if let authenticatedLogin = result.authenticatedLogin {
+                updatedGuidance = guidance.updatingStatus(
+                    "SSH key 属于 \(authenticatedLogin)，不匹配当前账号 \(account.displayName)",
+                    isReady: false
+                )
+            } else {
+                updatedGuidance = guidance.updatingStatus(
+                    "GitHub SSH 连接失败，请确认 public key 已添加到账号 SSH keys。",
+                    isReady: false
+                )
+            }
+
+            sshKeyGuidanceByAccountID[accountID] = updatedGuidance
             try sshKeyGuidanceStore?.save(updatedGuidance)
         } catch {
             errorMessage = error.localizedDescription
@@ -292,6 +309,33 @@ final class HomeViewModel {
 
     private func normalizedRepositoryPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path()
+    }
+}
+
+private extension SSHKeyGuidance {
+    func updatingStatus(_ statusText: String, isReady: Bool) -> SSHKeyGuidance {
+        SSHKeyGuidance(
+            accountID: accountID,
+            privateKeyPath: privateKeyPath,
+            publicKeyPath: publicKeyPath,
+            publicKey: publicKey,
+            githubSSHKeysURL: githubSSHKeysURL,
+            statusText: statusText,
+            deployKeyWarning: deployKeyWarning,
+            isReady: isReady
+        )
+    }
+}
+
+private extension Account {
+    func matchesGitHubLogin(_ login: String) -> Bool {
+        let normalizedLogin = login.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return [
+            displayName,
+            gitUserName
+        ].contains { value in
+            value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedLogin
+        }
     }
 }
 

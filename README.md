@@ -13,6 +13,7 @@ Git's native configuration is powerful, but managing multiple accounts across pe
 - Manage multiple Git accounts with Git name and email.
 - Generate a dedicated SSH key pair when a GitHub account is added.
 - Copy the generated public key and open GitHub SSH key settings.
+- Test the generated SSH key against GitHub and mark the account ready only when the authenticated GitHub login matches the configured account.
 - Add and remove local repositories from the managed list.
 - Bind each repository to a specific Git account.
 - Apply bindings to each repository's local `.git/config`.
@@ -43,6 +44,8 @@ GitHub Settings -> SSH and GPG keys
 ```
 
 Do not add these account keys as repository deploy keys. Deploy keys are repository-scoped and are not part of the current MVP.
+
+After adding the public key to GitHub, use the app's connection test button. The account should not be considered ready if GitHub authenticates the key as a different login.
 
 ## Requirements
 

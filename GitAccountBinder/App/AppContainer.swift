@@ -78,6 +78,10 @@ struct AppContainer {
                 paths: appPaths,
                 runner: ShellCommandRunner()
             ),
+            githubSSHTester: SSHKeyService(
+                paths: appPaths,
+                runner: ShellCommandRunner()
+            ),
             gitConfigApplyService: GitConfigApplyService(
                 runner: ShellCommandRunner(),
                 snapshotService: snapshotService
